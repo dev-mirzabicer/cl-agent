@@ -1,0 +1,287 @@
+# config/graph_schema.yaml
+# Centralized Graph Schema Configuration for Combinatory Logic RAG System
+
+entities:
+  Fact:
+    description: "Mathematical facts, theorems, lemmas, propositions, and results"
+    llm_instructions: |
+      A Fact represents any mathematical statement that can be proven true or false.
+      This includes theorems, lemmas, propositions, corollaries, and mathematical results.
+      Extract content that makes definitive mathematical claims.
+      Examples: "The Church-Rosser theorem states...", "Every combinator has a unique normal form"
+    
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+        description: "Unique identifier for the fact"
+      content:
+        type: text
+        required: true
+        indexed: true
+        description: "The complete mathematical statement"
+      explanation:
+        type: text
+        indexed: true
+        description: "Plain language explanation of the fact's significance"
+      statement_type:
+        type: string
+        description: "Type of statement: theorem, lemma, proposition, corollary, result"
+      confidence:
+        type: float
+        default: 1.0
+        validation_rules:
+          min: 0.0
+          max: 1.0
+        description: "Confidence level in the extraction accuracy"
+      
+    relationships:
+      outgoing: [USES, PROVES, CONTRADICTS, GENERALIZES, IMPLIES]
+      incoming: [PART_OF, DEFINED_IN, DERIVED_FROM, PROVED_BY]
+      
+    extraction_rules:
+      indicators: ["theorem", "lemma", "proposition", "fact", "result", "corollary", "claim"]
+      context_required: true
+      requires_proof_context: true
+
+  Definition:
+    description: "Mathematical definitions of terms, concepts, and symbols"
+    llm_instructions: |
+      A Definition establishes the precise meaning of mathematical terms or symbols.
+      Extract formal definitions that introduce new concepts or clarify existing ones.
+      Include both the term being defined and its complete definition.
+      Examples: "A combinator is a lambda term with no free variables", "The symbol λ denotes lambda abstraction"
+    
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+        description: "Unique identifier for the definition"
+      term:
+        type: string
+        required: true
+        indexed: true
+        description: "The term or symbol being defined"
+      definition:
+        type: text
+        required: true
+        indexed: true
+        description: "The complete formal definition"
+      informal_explanation:
+        type: text
+        indexed: true
+        description: "Informal explanation in plain language"
+      definition_type:
+        type: string
+        description: "Type: formal_definition, informal_definition, notation"
+      
+    relationships:
+      outgoing: [USES, SPECIALIZES, GENERALIZES, EQUIVALENT_TO]
+      incoming: [PART_OF, DEFINED_IN, USED_BY]
+
+    extraction_rules:
+      indicators: ["definition", "define", "let", "denote", "notation", "symbol"]
+      context_required: true
+
+  Proof:
+    description: "Mathematical proofs and proof sketches"
+    llm_instructions: |
+      A Proof contains the logical reasoning that demonstrates the truth of a fact.
+      Extract complete proofs, proof sketches, and significant proof steps.
+      Always link to the fact being proven. Include proof techniques and key insights.
+      Examples: Complete formal proofs, proof outlines, proof by induction steps
+    
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+        description: "Unique identifier for the proof"
+      content:
+        type: text
+        required: true
+        indexed: true
+        description: "The complete proof text"
+      proof_technique:
+        type: string
+        description: "Technique used: induction, contradiction, construction, etc."
+      complexity:
+        type: string
+        description: "Complexity level: simple, moderate, complex"
+      key_insights:
+        type: text
+        description: "Key insights or novel techniques in the proof"
+      
+    relationships:
+      outgoing: [PROVES, USES, APPLIES, REFERENCES]
+      incoming: [PART_OF, DEFINED_IN]
+
+    extraction_rules:
+      indicators: ["proof", "prove", "demonstration", "show that", "we have"]
+      requires_fact_reference: true
+
+  Source:
+    description: "Source documents (books, papers, chapters)"
+    llm_instructions: |
+      A Source represents the original document from which information was extracted.
+      This provides provenance and allows tracking of where each piece of knowledge originated.
+    
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+        description: "Unique identifier for the source"
+      title:
+        type: string
+        required: true
+        indexed: true
+        description: "Title of the source document"
+      authors:
+        type: list
+        description: "List of authors"
+      publication_year:
+        type: integer
+        description: "Year of publication"
+      document_type:
+        type: string
+        description: "Type: book, paper, chapter, section"
+      source_path:
+        type: string
+        description: "File path to the original document"
+      doi:
+        type: string
+        description: "Digital Object Identifier"
+      isbn:
+        type: string
+        description: "International Standard Book Number"
+      
+    relationships:
+      incoming: [PART_OF, DEFINED_IN]
+
+relationships:
+  USES:
+    description: "Entity uses or references another entity in its definition or statement"
+    llm_instructions: |
+      Use USES when one entity directly references, applies, or builds upon another.
+      This is the most common relationship for showing dependencies between mathematical concepts.
+    source_entities: [Fact, Definition, Proof]
+    target_entities: [Definition, Fact]
+    properties:
+      context:
+        type: string
+        description: "Context in which the entity is used"
+      strength:
+        type: float
+        default: 1.0
+        description: "Strength of the usage relationship"
+
+  PROVES:
+    description: "A proof demonstrates the truth of a fact"
+    llm_instructions: |
+      Use PROVES to link proofs to the facts they establish.
+      Each proof should prove exactly one main fact, though it may use other facts.
+    source_entities: [Proof]
+    target_entities: [Fact]
+    properties:
+      proof_completeness:
+        type: string
+        description: "complete, sketch, partial"
+
+  DEFINED_IN:
+    description: "Entity is defined or introduced in a source"
+    llm_instructions: |
+      Use DEFINED_IN to track the original source where an entity was first introduced.
+      This provides essential provenance information.
+    source_entities: [Fact, Definition, Proof]
+    target_entities: [Source]
+    properties:
+      page_number:
+        type: integer
+        description: "Page number where defined"
+      section:
+        type: string
+        description: "Section or chapter where defined"
+
+  PART_OF:
+    description: "Entity is part of a larger source document"
+    llm_instructions: |
+      Use PART_OF to show containment relationships with source documents.
+      This helps organize content hierarchically.
+    source_entities: [Fact, Definition, Proof]
+    target_entities: [Source]
+
+  SPECIALIZES:
+    description: "Definition is a special case of another definition"
+    llm_instructions: |
+      Use SPECIALIZES when one definition is a more specific version of another.
+      Example: "Binary combinator" specializes "Combinator"
+    source_entities: [Definition]
+    target_entities: [Definition]
+
+  GENERALIZES:
+    description: "Definition is a generalization of another definition"
+    llm_instructions: |
+      Use GENERALIZES when one definition encompasses another as a special case.
+      This is the inverse of SPECIALIZES.
+    source_entities: [Definition, Fact]
+    target_entities: [Definition, Fact]
+
+  IMPLIES:
+    description: "One fact logically implies another"
+    llm_instructions: |
+      Use IMPLIES when one fact logically leads to another.
+      This captures mathematical implication relationships.
+    source_entities: [Fact]
+    target_entities: [Fact]
+
+  CONTRADICTS:
+    description: "One fact contradicts another"
+    llm_instructions: |
+      Use CONTRADICTS when facts are mutually exclusive or contradictory.
+      This helps identify inconsistencies or alternative formulations.
+    source_entities: [Fact]
+    target_entities: [Fact]
+
+  EQUIVALENT_TO:
+    description: "Definitions or facts that are logically equivalent"
+    llm_instructions: |
+      Use EQUIVALENT_TO for different formulations of the same concept.
+      This captures alternative definitions or equivalent statements.
+    source_entities: [Definition, Fact]
+    target_entities: [Definition, Fact]
+
+# Extraction strategy configuration
+extraction_strategy:
+  passes:
+    - name: "Definition Extraction Pass"
+      description: "Extract all definitions first to build foundational glossary"
+      target_entities: [Definition]
+      context_entities: []
+      requires_context: false
+      
+    - name: "Fact and Proof Extraction Pass"  
+      description: "Extract facts and proofs using definition context"
+      target_entities: [Fact, Proof]
+      context_entities: [Definition]
+      requires_context: true
+      context_retrieval:
+        enabled: true
+        max_context_items: 50
+        search_methods: [cosine_similarity, bm25]
+
+# Neo4j constraints and indexes
+neo4j_setup:
+  constraints:
+    - "CREATE CONSTRAINT fact_id IF NOT EXISTS FOR (f:Fact) REQUIRE f.id IS UNIQUE"
+    - "CREATE CONSTRAINT definition_id IF NOT EXISTS FOR (d:Definition) REQUIRE d.id IS UNIQUE"
+    - "CREATE CONSTRAINT proof_id IF NOT EXISTS FOR (p:Proof) REQUIRE p.id IS UNIQUE"
+    - "CREATE CONSTRAINT source_id IF NOT EXISTS FOR (s:Source) REQUIRE s.id IS UNIQUE"
+    
+  indexes:
+    - "CREATE FULLTEXT INDEX fact_content_index IF NOT EXISTS FOR (f:Fact) ON EACH [f.content, f.explanation]"
+    - "CREATE FULLTEXT INDEX definition_content_index IF NOT EXISTS FOR (d:Definition) ON EACH [d.term, d.definition, d.informal_explanation]"
+    - "CREATE FULLTEXT INDEX proof_content_index IF NOT EXISTS FOR (p:Proof) ON EACH [p.content, p.key_insights]"
+    - "CREATE FULLTEXT INDEX source_title_index IF NOT EXISTS FOR (s:Source) ON EACH [s.title, s.authors]"
